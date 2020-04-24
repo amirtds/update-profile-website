@@ -1,15 +1,17 @@
 "use latest";
 
-import express from "express";
-import { fromExpress } from "webtask-tools";
-import bodyParser from "body-parser";
-import cookieSession from "cookie-session";
-import csurf from "csurf";
-import moment from "moment";
-import jwt from "jsonwebtoken";
-import ejs from "ejs";
-import _ from "lodash";
+const express = require("express");
+const bodyParser = require("body-parser");
+const cookieSession = require("cookie-session");
+const csurf = require("csurf");
+const moment = require("moment");
+const jwt = require("jsonwebtoken");
+const ejs = require("ejs");
+const _ = require("lodash");
 
+const PORT = process.env.PORT || 5000;
+
+console.log(process.env.TOKEN_SECRET);
 const app = express();
 
 app.use(
@@ -25,9 +27,7 @@ const csrfProtection = csurf();
 app.get("/", verifyInputToken, csrfProtection, (req, res) => {
   // get required fields from JWT passed from Auth0 rule
   const requiredFields =
-    req.tokenPayload[
-      `${req.webtaskContext.secrets.TOKEN_ISSUER}/claims/required_fields`
-    ];
+    req.tokenPayload[`${process.env.TOKEN_ISSUER}/claims/required_fields`];
   // store data in session that needs to survive the POST
   req.session.subject = req.tokenPayload.sub;
   req.session.requiredFields = requiredFields;
@@ -77,7 +77,7 @@ app.post("/", parseBody, csrfProtection, validateForm, (req, res) => {
   // render form that auth-posts back to Auth0 with collected data
   const formData = _.omit(req.body, "_csrf");
   const HTML = renderReturnView({
-    action: `https://${req.webtaskContext.secrets.AUTH0_DOMAIN}/continue?state=${req.session.state}`,
+    action: `https://${process.env.AUTH0_DOMAIN}/continue?state=${req.session.state}`,
     formData,
   });
 
@@ -88,20 +88,22 @@ app.post("/", parseBody, csrfProtection, validateForm, (req, res) => {
   res.status(200).send(HTML);
 });
 
-module.exports = fromExpress(app);
+// module.exports = fromExpress(app);
+
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
 
 // middleware functions
 
 function verifyInputToken(req, res, next) {
   const options = {
-    issuer: req.webtaskContext.secrets.TOKEN_ISSUER,
-    audience: req.webtaskContext.secrets.TOKEN_AUDIENCE,
+    issuer: process.env.TOKEN_ISSUER,
+    audience: process.env.TOKEN_AUDIENCE,
   };
 
   try {
     req.tokenPayload = jwt.verify(
       req.query.token,
-      req.webtaskContext.secrets.TOKEN_SECRET,
+      process.env.TOKEN_SECRET,
       options
     );
   } catch (err) {
@@ -114,9 +116,9 @@ function validateForm(req, res, next) {
   const requiredFields = req.session.requiredFields;
 
   const validation = {
-    given_name: (value) => value && value.trim().length > 0,
-    family_name: (value) => value && value.trim().length > 0,
-    birthdate: (value) => value && value === moment(value).format("YYYY-MM-DD"),
+    title: (value) => value && value.trim().length > 0,
+    company: (value) => value && value.trim().length > 0,
+    email_opt_in: (value) => value && ["yes", "no"].indexOf(value) >= 0,
   };
 
   req.invalidFields = [];
@@ -150,32 +152,35 @@ function renderProfileView(data) {
             </div>
           </div>
           
-          <form class="form-horizontal" method="post" action="<%= action %>">
+          <form class="form-horizontal" method="post" action="<%= action %>" id="extra-fields-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           
-            <% if (fields.given_name) { %>
-            <div class="form-group<% if (fields.given_name.invalid) { %> has-error<% } %>">
-              <label for="given_name" class="col-sm-2 control-label">First Name</label>
+            <% if (fields.title) { %>
+            <div class="form-group<% if (fields.title.invalid) { %> has-error<% } %>">
+              <label for="title" class="col-sm-2 control-label">Title:</label>
               <div class="col-sm-4">
-                <input type="text" class="form-control" id="given_name" name="given_name" placeholder="Mary" value="<%= fields.given_name.value %>">
+                <input type="text" class="form-control" id="title" name="title" placeholder="Developer" value="<%= fields.title.value %>">
               </div>
             </div>
             <% } %>
     
-            <% if (fields.family_name) { %>
-            <div class="form-group<% if (fields.family_name.invalid) { %> has-error<% } %>">
-            <label for="family_name" class="col-sm-2 control-label">Family Name</label>
+            <% if (fields.company) { %>
+            <div class="form-group<% if (fields.company.invalid) { %> has-error<% } %>">
+            <label for="company" class="col-sm-2 control-label">Company:</label>
               <div class="col-sm-4">
-                <input type="text" class="form-control" id="family_name" name="family_name" placeholder="Smith" value="<%= fields.family_name.value %>">
+                <input type="text" class="form-control" id="company" name="company" placeholder="Appsembler" value="<%= fields.company.value %>">
               </div>
             </div>
             <% } %>
             
-            <% if (fields.birthdate) { %>
-            <div class="form-group<% if (fields.birthdate.invalid) { %> has-error<% } %>">
-            <label for="birthdate" class="col-sm-2 control-label">Birthday</label>
+            <% if (fields.email_opt_in) { %>
+            <div class="form-group<% if (fields.email_opt_in.invalid) { %> has-error<% } %>">
+            <label for="email_opt_in" class="col-sm-2 control-label">Email Opt In</label>
               <div class="col-sm-4">
-                <input type="date" class="form-control" id="birthdate" name="birthdate" value="<%= fields.birthdate.value %>">
+                <select id="email_opt_in" name="email_opt_in" form="extra-fields-form">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
               </div>
             </div>
             <% } %>
