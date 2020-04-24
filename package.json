@@ -1,5 +1,5 @@
 {
-  "name": "profile-upater",
+  "name": "auth0-profile-updater",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",

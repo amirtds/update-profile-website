@@ -11,7 +11,6 @@ const _ = require("lodash");
 
 const PORT = process.env.PORT || 5000;
 
-console.log(process.env.TOKEN_SECRET);
 const app = express();
 
 app.use(
@@ -225,3 +224,7 @@ function renderReturnView(data) {
 
   return ejs.render(template, data);
 }
+
+module.exports = {
+  app,
+};
